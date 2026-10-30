@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<!-- Matheus Vicente - matheis.vieira@bjsegdistribuidora.com.br -->
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BJSEG | Controle de Estoque</title>
+<script>try{var t=localStorage.getItem("bjseg.theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="escudo.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="locked">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><linearGradient id="spkG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22e63c" stop-opacity=".6"/><stop offset="1" stop-color="#22e63c" stop-opacity="0"/></linearGradient></svg>
+<div class="login" id="login" hidden>
+  <form id="lForm" novalidate>
+    <img src="escudo.png" alt="BJSEG" class="logo" width="72" height="72">
+    <h1>BJSEG</h1><p class="muted">Controle de Estoque</p>
+    <label>Acesso<select name="user" id="lUser"></select></label>
+    <label>Senha<input name="pass" type="password" autocomplete="current-password" required><em class="err" id="lErr"></em></label>
+    <button class="btn amber">Entrar</button>
+  </form>
+</div>
+<aside class="side" id="side">
+  <div class="brand">
+    <img src="escudo.png" width="38" height="38" alt="Escudo BJSEG" class="logo">
+    <div><b>BJSEG</b><small>Segurança Eletrônica</small></div>
+  </div>
+  <nav>
+    <a href="#painel" class="on"><i>▦</i><span>Painel</span></a>
+    <a href="#lojas" class="adm-only"><i>⌂</i><span>Lojas</span></a>
+    <a href="#estoque"><i>▤</i><span>Estoque</span></a>
+    <a href="#transferencias"><i>⇄</i><span>Transferências</span></a>
+    <a href="#atividades"><i>◷</i><span>Atividades</span></a>
+    <a href="#analises"><i>◔</i><span>Análises</span></a>
+    <a href="#alertas"><i>⚠</i><span>Alertas</span></a>
+    <a href="#compras" class="adm-only"><i>⛟</i><span>Compras</span></a>
+    <a href="#acessos" class="adm-only"><i>⚿</i><span>Acessos</span></a>
+  </nav>
+  <button class="logout" id="logoutBtn"><i>⎋</i><span>Sair</span></button>
+  <button class="collapse" id="navToggle" aria-label="Recolher ou expandir menu"><i>◧</i><span>Recolher menu</span></button>
+</aside>
+
+<div class="col">
+  <header class="cmd">
+    <button class="btn ico" id="menuBtn" aria-label="Abrir menu">☰</button>
+    <label class="search"><span class="sr">Busca global</span>
+      <input id="q" type="search" placeholder="Buscar por SKU ou produto" autocomplete="off"><kbd>/</kbd></label>
+    <label class="vsel adm-only"><span class="sr">Visão de estoque</span><select id="selLoc"></select></label>
+    <button class="btn adm-only" id="impBtn">Importar do Object</button>
+    <button class="btn" id="sumBtn">Resumo do dia</button>
+    <button class="btn ico" id="themeBtn" aria-label="Alternar tema">◐</button>
+    <span class="sync" id="syncInfo" data-st="warn"></span>
+    <span class="who" id="who"></span>
+  </header>
+
+  <aside class="smart" id="smartBar" role="status" aria-live="polite" hidden>
+    <div><b id="smartTitle"></b><ul id="smartList"></ul></div>
+    <div class="smart-a"><a class="btn amber" href="#transferencias">Ver sugestões</a><button class="btn" id="smartX" type="button">Dispensar</button></div>
+  </aside>
+
+  <main>
+    <!-- ================= PAINEL ================= -->
+    <div class="view grid on" data-v="painel">
+      <article class="tile k-valor"><span class="lb" id="kValorLb">Valor do estoque (custo)</span><strong id="kValor">R$ 0</strong><small id="kValorSub"></small></article>
+      <article class="tile k-skus"><span class="lb">Total de SKUs</span><strong id="kSkus">0</strong><small id="kUn"></small></article>
+      <article class="tile k-alarm"><span class="lb">Alarmes de estoque baixo</span><strong id="kAlarm">0</strong><small>Itens por local, no mínimo ou abaixo</small></article>
+
+      <section class="tile urgent">
+        <header><h2>Reposição urgente</h2><span class="count" id="urgCount"></span></header>
+        <ul id="feed"></ul>
+      </section>
+
+      <section class="tile c-half">
+        <header class="toolbar"><h2>Pontos de atenção</h2><span class="count" id="attnCount"></span></header>
+        <ul id="attnList" class="alist"></ul>
+      </section>
+      <section class="tile c-half"><h2>Meus favoritos</h2><ul id="favList" class="alist"></ul></section>
+
+      <section class="tile c-mov"><h2>Últimas movimentações</h2><ul id="logList" class="log"></ul></section>
+      <section class="tile c-cat"><h2>Resumo por categoria</h2>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Categoria</th><th class="n">SKUs</th><th class="n">Unid.</th><th class="n">Valor (custo)</th></tr></thead>
+          <tbody id="catRows"></tbody></table></div>
+      </section>
+    </div>
+
+    <!-- ================= LOJAS ================= -->
+    <div class="view grid adm-only" data-v="lojas">
+      <div id="locTiles"></div>
+      <section class="tile tbl">
+        <div class="toolbar"><h2>Matriz de estoque por local</h2><span class="count">Formato: quantidade / mínimo</span></div>
+        <div class="wrap"><table><thead id="mxHead"></thead><tbody id="mx"></tbody></table></div>
+      </section>
+    </div>
+
+    <!-- ================= ESTOQUE ================= -->
+    <div class="view grid" data-v="estoque">
+      <section class="tile tbl">
+        <div class="toolbar">
+          <h2>Estoque</h2>
+          <select id="fCat" aria-label="Filtrar por categoria"></select>
+          <select id="fSt" aria-label="Filtrar por status">
+            <option value="">Todos os status</option><option value="ok">Estoque Normal</option>
+            <option value="crit">Crítico</option><option value="out">Esgotado</option></select>
+          <label class="chk"><input type="checkbox" id="fFav"> Só favoritos</label>
+          <select id="fSaved" aria-label="Filtros salvos"></select>
+          <button class="btn" id="fSave" type="button">Salvar filtro</button>
+          <button class="btn del" id="fDel" type="button" hidden>Excluir filtro</button>
+        </div>
+        <div class="wrap"><table>
+          <thead><tr><th>SKU</th><th>Produto</th><th>Categoria</th><th class="n">Qtd. Atual</th><th class="n">A caminho</th><th class="n">Estoque Mín.</th><th class="n">Cobertura</th><th class="n">Custo (R$)</th><th class="n">Preço Unitário (R$)</th><th>Status</th><th>Tendência</th><th>Ações</th><th>Nível</th></tr></thead>
+          <tbody id="rows"></tbody></table></div>
+      </section>
+    </div>
+
+    <!-- ================= TRANSFERÊNCIAS (somente consulta) ================= -->
+    <div class="view grid" data-v="transferencias">
+      <article class="tile k-tp"><span class="lb">Pendentes de aceite</span><strong id="tPend">0</strong><small id="tPendSub"></small></article>
+      <article class="tile k-ta"><span class="lb">Aceitas (30 dias)</span><strong id="tOk">0</strong><small id="tOkSub"></small></article>
+      <article class="tile k-tc"><span class="lb">Canceladas (30 dias)</span><strong id="tCan">0</strong><small id="tCanSub"></small></article>
+      <section class="tile tbl">
+        <div class="toolbar"><h2>Pendentes que precisam de atenção</h2><span class="count" id="tAttnCount"></span></div>
+        <p class="muted">Pendentes há mais de 3 dias. O produto já saiu da origem e ainda não conta no estoque do destino. Cobrar o aceite é feito no Object.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Nº</th><th>Produto</th><th>Origem → destino</th><th class="n">Qtd.</th><th class="n">Parada há</th><th>Solicitante</th><th></th></tr></thead>
+          <tbody id="tAttnRows"></tbody></table></div>
+      </section>
+
+      <section class="tile tbl">
+        <div class="toolbar"><h2>Sugestões de transferência</h2><span class="count" id="sgCount"></span></div>
+        <p class="muted">Recebe quem está no mínimo ou com menos de 7 dias de cobertura (já contando o que está a caminho). A retirada é dividida entre as unidades que ficam com mais dias de cobertura, e nenhuma cai abaixo de 14 dias de vendas nem de 2× o mínimo. O aviso sobe sozinho; a transferência é feita no Object.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Produto</th><th>De</th><th>Para</th><th class="n">Qtd. sugerida</th><th>Resultado</th></tr></thead>
+          <tbody id="sgRows"></tbody></table></div>
+      </section>
+
+      <section class="tile c-half">
+        <h2>Fluxo entre unidades (90 dias)</h2>
+        <p class="muted">Unidades aceitas no período. "A receber" são as pendentes com destino na unidade.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Unidade</th><th class="n">Enviou</th><th class="n">Recebeu</th><th class="n">Saldo</th><th class="n">A receber</th></tr></thead>
+          <tbody id="flRows"></tbody></table></div>
+      </section>
+      <section class="tile c-half">
+        <h2>Quem enviou para quem</h2>
+        <p class="muted">Unidades aceitas em 90 dias. Ajuda a revisar o mínimo de quem recebe sempre.</p>
+        <div class="wrap"><table class="mini"><thead id="fmHead"></thead><tbody id="fmRows"></tbody></table></div>
+      </section>
+
+      <section class="tile tbl">
+        <div class="toolbar">
+          <h2>Transferências entre unidades</h2>
+          <select id="fTs" aria-label="Filtrar por situação">
+            <option value="">Todas as situações</option><option value="pend">Pendentes</option>
+            <option value="ok">Aceitas</option><option value="cancel">Canceladas</option></select>
+        </div>
+        <p class="muted">Dados do Object, somente consulta. O produto só entra no estoque do destino quando a unidade aceita a transferência no Object; enquanto estiver pendente, ainda não conta no saldo.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Data</th><th>Produto</th><th>Origem</th><th>Destino</th><th class="n">Qtd.</th><th>Motivo</th><th>Situação</th><th>Prazo / decisão</th><th></th></tr></thead>
+          <tbody id="trRows"></tbody></table></div>
+      </section>
+    </div>
+
+    <!-- ================= ATIVIDADES ================= -->
+    <div class="view grid" data-v="atividades">
+      <section class="tile tbl">
+        <div class="toolbar">
+          <h2>Atividades do Object</h2><span class="count" id="actCount"></span>
+          <select id="fAType" aria-label="Filtrar por tipo">
+            <option value="">Todos os tipos</option><option value="in">Entradas</option><option value="out">Saídas</option>
+            <option value="adj">Ajustes de inventário</option><option value="transf">Transferências</option><option value="erp">Sincronizações</option></select>
+          <select id="fAUser" aria-label="Filtrar por usuário"></select>
+          <select id="fAPer" aria-label="Filtrar por período">
+            <option value="7">Últimos 7 dias</option><option value="30" selected>Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="0">Todo o período</option></select>
+        </div>
+        <p class="muted">Tudo o que o Object registrou: movimentações, ajustes e transferências (criação, aceite e cancelamento). A loja segue a visão escolhida e a busca do topo filtra por SKU ou produto.</p>
+        <ul id="actList" class="log tall"></ul>
+        <button class="btn" id="actMore" hidden>Mostrar mais</button>
+      </section>
+    </div>
+
+    <!-- ================= ANÁLISES ================= -->
+    <div class="view grid" data-v="analises">
+      <section class="tile tbl"><h2>Análises de estoque</h2><p class="muted" id="anNote" style="margin:.3rem 0 0"></p></section>
+
+      <section class="tile c-half">
+        <h2>Cobertura e previsão de ruptura</h2>
+        <p class="muted">Ritmo previsto = média móvel (60% dos últimos 30 dias, 40% dos últimos 7). "Risco" = acaba antes do prazo do fornecedor.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Produto</th><th class="n">Estoque</th><th class="n">Ritmo/dia</th><th>Tendência</th><th class="n">Cobertura</th><th class="n">Ruptura em</th><th class="n">Prazo</th><th></th></tr></thead>
+          <tbody id="cvRows"></tbody></table></div>
+      </section>
+
+      <section class="tile c-half">
+        <h2>Produtos que mais saem</h2>
+        <p class="muted">Ranking de saídas nos últimos 30 dias (na visão selecionada).</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Produto</th><th class="n">Saídas (30 d)</th><th class="n">Valor vendido</th><th class="n">Estoque</th></tr></thead>
+          <tbody id="topRows"></tbody></table></div>
+      </section>
+
+      <section class="tile tbl">
+        <div class="toolbar"><h2>Dias em ruptura e venda perdida</h2><span class="count" id="lostTot"></span></div>
+        <p class="muted">Dias, nos últimos 30, em que o saldo ficou zerado (refeito a partir das movimentações do Object). Venda perdida = dias × ritmo normal de saídas × preço. É uma estimativa.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Produto</th><th class="n">Dias sem estoque</th><th class="n">Ritmo normal/dia</th><th class="n">Un. perdidas</th><th class="n">Venda perdida</th><th class="n">Margem perdida</th></tr></thead>
+          <tbody id="lostRows"></tbody></table></div>
+      </section>
+
+      <section class="tile tbl">
+        <div class="toolbar"><h2>Estoque parado</h2><span class="count" id="parTot"></span></div>
+        <p class="muted">Itens com saldo e sem saída há 60 dias ou mais. Valor = capital imobilizado (custo).</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Produto</th><th class="n">Estoque</th><th class="n">Sem saída</th><th class="n">Capital parado</th></tr></thead>
+          <tbody id="parRows"></tbody></table></div>
+      </section>
+
+      <section class="tile c-half">
+        <h2>Margem por categoria (90 dias)</h2>
+        <p class="muted">Sobre o que saiu: preço de venda menos custo.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Categoria</th><th class="n">Vendido</th><th class="n">Custo</th><th class="n">Margem</th><th class="n">Margem %</th></tr></thead>
+          <tbody id="mgRows"></tbody><tfoot id="mgFoot"></tfoot></table></div>
+      </section>
+      <section class="tile c-half">
+        <h2>Giro de estoque por categoria</h2>
+        <p class="muted">Giro = custo das saídas (90 dias, anualizado) ÷ capital em estoque. Quanto menor, mais dinheiro parado.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Categoria</th><th class="n">Capital em estoque</th><th class="n">Custo saídas (90 d)</th><th class="n">Giro/ano</th><th class="n">Dias de estoque</th></tr></thead>
+          <tbody id="gdRows"></tbody><tfoot id="gdFoot"></tfoot></table></div>
+      </section>
+      <section class="tile tbl">
+        <h2>Margem por produto (90 dias)</h2>
+        <p class="muted">Os 10 que mais deram margem em reais. Margem % = (preço − custo) ÷ preço: acima de 30% normal, 15% a 30% atenção, abaixo de 15% baixa.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Produto</th><th class="n">Saídas</th><th class="n">Margem %</th><th class="n">Margem total</th></tr></thead>
+          <tbody id="pmRows"></tbody></table></div>
+      </section>
+
+      <section class="tile tbl">
+        <h2>Curva ABC (últimos 90 dias)</h2>
+        <p class="muted">Classe A = itens que somam até 80% do valor vendido; B = até 95%; C = o restante (inclui itens sem saída).</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Classe</th><th>Produto</th><th class="n">Saídas (R$)</th><th class="n">% do total</th><th class="n">% acumulado</th></tr></thead>
+          <tbody id="abcRows"></tbody></table></div>
+      </section>
+    </div>
+
+    <!-- ================= ALERTAS ================= -->
+    <div class="view grid" data-v="alertas">
+      <section class="tile tbl">
+        <div class="toolbar">
+          <h2>Alertas e anomalias</h2><span class="count" id="alCount"></span>
+          <select id="fAl" aria-label="Filtrar por gravidade">
+            <option value="">Todas as gravidades</option><option value="out">Críticos</option><option value="crit">Atenção</option></select>
+        </div>
+        <p class="muted">Verificações automáticas sobre os dados do Object: transferências paradas, ajustes de inventário, saídas fora do padrão, cadastros incompletos e dados desatualizados. Aqui só aparece o aviso; a correção é feita no Object.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Gravidade</th><th>Tipo</th><th>Item</th><th>Detalhe</th></tr></thead>
+          <tbody id="alRows"></tbody></table></div>
+      </section>
+    </div>
+
+    <!-- ================= COMPRAS ================= -->
+    <div class="view grid adm-only" data-v="compras">
+      <section class="tile tbl">
+        <div class="toolbar">
+          <h2>Lista de compras sugerida</h2><span class="count" id="buyTot"></span>
+          <button class="btn no-print" id="btnCsv">Exportar CSV</button>
+          <button class="btn no-print" id="btnPrint">Imprimir</button>
+        </div>
+        <p class="muted" style="margin:0">Considera o estoque total (Matriz + lojas) e as transferências pendentes. Antes de comprar, veja as sugestões de transferência. Sugere comprar quando o total está no mínimo ou a cobertura é menor que o prazo do fornecedor. Meta: 2× o mínimo ou prazo + 15 dias de vendas.</p>
+      </section>
+      <div id="buy"></div>
+      <section class="tile tbl">
+        <h2>Fornecedores</h2>
+        <p class="muted">Visão por fornecedor com estoque total (Matriz + lojas) e vendas dos últimos 90 dias. "Em risco" = itens que acabam antes do prazo cadastrado. O prazo real de entrega só pode ser calculado quando o Object informar a data do pedido e a do recebimento.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Fornecedor</th><th class="n">SKUs</th><th class="n">Capital em estoque</th><th class="n">Vendas (90 d)</th><th class="n">% das vendas</th><th class="n">Em alerta</th><th class="n">Em risco</th><th class="n">Prazo médio</th><th class="n">Compra sugerida</th></tr></thead>
+          <tbody id="supRows"></tbody></table></div>
+      </section>
+    </div>
+
+    <!-- ================= ACESSOS ================= -->
+    <div class="view grid adm-only" data-v="acessos">
+      <section class="tile tbl">
+        <h2>Acessos</h2>
+        <p class="muted">Cada loja entra com a própria conta e vê somente o seu estoque. O líder vê todas. Somente o líder pode alterar as senhas.</p>
+        <div class="wrap"><table class="mini">
+          <thead><tr><th>Acesso</th><th>Perfil</th><th>Senha</th><th></th></tr></thead>
+          <tbody id="usrRows"></tbody></table></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- Importar do Object (CSV ou JSON) -->
+<dialog id="iDlg">
+  <h3>Importar do Object</h3>
+  <p class="muted">Envie o arquivo exportado do Object (CSV ou JSON). Antes de gravar, mostramos o que vai mudar. Colunas aceitas: SKU, Produto, Categoria, Fornecedor, Prazo, Custo, Preço e uma coluna de saldo por unidade (ex.: Matriz, Arujá) ou Filial + Saldo + Mínimo.</p>
+  <label>Arquivo<input type="file" id="iFile" accept=".csv,.json,.txt"></label>
+  <div id="iBody"></div>
+  <div class="acts-dlg"><button type="button" class="btn" data-close>Cancelar</button><button type="button" class="btn amber" id="iApply" disabled>Aplicar importação</button></div>
+</dialog>
+
+<!-- Resumo do dia -->
+<dialog id="sDlg">
+  <h3>Resumo do dia</h3>
+  <pre id="sText" class="sum"></pre>
+  <div class="acts-dlg">
+    <button type="button" class="btn" id="sCopy">Copiar</button><button type="button" class="btn" id="sWa">WhatsApp</button>
+    <button type="button" class="btn" id="sTxt">Baixar .txt</button><button type="button" class="btn" id="sPrint">Imprimir</button>
+    <button type="button" class="btn amber" data-close>Fechar</button>
+  </div>
+</dialog>
+
+<!-- Alterar / redefinir senha -->
+<dialog id="aDlg"><form id="aForm" novalidate>
+  <h3 id="aTitle">Alterar senha</h3><p id="aInfo" class="muted"></p>
+  <label>Nova senha<input name="p1" type="password" autocomplete="new-password" required><em class="err"></em></label>
+  <label>Confirmar nova senha<input name="p2" type="password" autocomplete="new-password" required><em class="err"></em></label>
+  <div class="acts-dlg"><button type="button" class="btn" data-close id="aCancel">Cancelar</button><button class="btn amber">Salvar senha</button></div>
+</form></dialog>
+
+<!-- Detalhes da transferência (somente consulta) -->
+<dialog id="tDlg"><div id="tBody"></div>
+  <div class="acts-dlg"><button type="button" class="btn" data-close>Fechar</button></div>
+</dialog>
+
+<!-- Detalhes e histórico do produto -->
+<dialog id="hDlg"><div id="hBody"></div>
+  <div class="acts-dlg"><button type="button" class="btn" data-close>Fechar</button></div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="script.js"></script>
+</body>
+</html>
